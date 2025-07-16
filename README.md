@@ -18,3 +18,6 @@ Implementing e.g. an OpenGL backend should be fairly trivial. As for the platfor
 Except for some minor preparations, we do not currently support ImGui's multi-viewports. I have written backends before, that do support it but covering all edge cases is difficult so to keep it simple I have not yet done it here.
 
 Speaking of edge cases, this is not a 1:1 port of the C++ backends. While they did serve as inspiration here and there, this implementation is mostly written from scratch. Imgui itself does a very good job with its API but the platforms it supports are usually a bit finicky. So some issues surely are to be expected.
+
+## Build instructions
+An up to date Odin compiler must be installed. The build_debug.cmd and build_release.cmd files can then be used to build the demo. Alternatively the command `odin.exe build ./src -debug -out:ImguiDemo.exe` can be used directly.
