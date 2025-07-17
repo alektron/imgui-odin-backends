@@ -15,6 +15,8 @@ Currently only Windows is supported as a platform with DirectX for rendering. Th
 
 Implementing e.g. an OpenGL backend should be fairly trivial. As for the platform layer, I only have experience with Windows, so I can't tell how robust the abstraction is for other platforms. But it is simple enough that it should be very easily adjustable.
 
+We do not currently support the new dynamic font system. I have yet to look into it.
+
 Except for some minor preparations, we do not currently support ImGui's multi-viewports. I have written backends before, that do support it but covering all edge cases is difficult so to keep it simple I have not yet done it here.
 
 Speaking of edge cases, this is not a 1:1 port of the C++ backends. While they did serve as inspiration here and there, this implementation is mostly written from scratch. Imgui itself does a very good job with its API but the platforms it supports are usually a bit finicky. So some issues surely are to be expected.
