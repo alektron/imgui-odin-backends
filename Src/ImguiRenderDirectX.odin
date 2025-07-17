@@ -288,6 +288,9 @@ GpuPreparePipeline :: proc(gpu: ^Gpu, gpuRes: ^GpuRes, windowSize: [2]f32) {
   gpu.DeviceContext->OMSetRenderTargets(1, &gpuRes.RenderTargetView, nil)
   viewport := d3d.VIEWPORT{ 0, 0, f32(windowSize.x), f32(windowSize.y),  0, 1 };
   gpu.DeviceContext->RSSetViewports(1, &viewport);
+  
+  col := [4]f32{ 0.3, 0.3, 0.3, 1 }
+  gpu.DeviceContext->ClearRenderTargetView(gpuRes.RenderTargetView, &col)
 }
 
 GpuBindDrawBuffers :: proc(gpu: ^Gpu, gpuRes: ^GpuRes) {
