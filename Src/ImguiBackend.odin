@@ -19,6 +19,12 @@ ImGuiBackend :: struct {
   Clipboard: ClipboardContext,
 }
 
+VertexImGui :: struct {
+  Pos : [2]f32,
+  Tex : [2]f32,
+  Col : u32,
+}
+
 @(private="file")
 ImGui_FontAtlasInit :: proc(atlas: ^imgui.FontAtlas) {
   //The following fields of imgui.FontAtlas are usually set by its constructor.
@@ -46,8 +52,8 @@ ImGui_Init :: proc(ctx: ^ImGuiBackend, fontContent: []u8, gpu: ^Gpu, gpuRes: ^Gp
   bytesPerPixel: c.int
   imgui.FontAtlas_GetTexDataAsRGBA32(ctx.FontAtlas, &pixels, &width, &height, &bytesPerPixel)
   
-  GpuCreateAndUploadTexture(slice.from_ptr((^u8)(pixels), int(width * height * bytesPerPixel)), u32(width), u32(height), u32(bytesPerPixel), gpu, gpuRes)
-  imgui.FontAtlas_SetTexID(ctx.FontAtlas, gpuRes.FontTextureView)
+  texId := GpuCreateAndUploadTexture(slice.from_ptr((^u8)(pixels), int(width * height * bytesPerPixel)), u32(width), u32(height), u32(bytesPerPixel), gpu, gpuRes)
+  imgui.FontAtlas_SetTexID(ctx.FontAtlas, transmute(rawptr)texId)
   
   ctx.Context = imgui.CreateContext(ctx.FontAtlas)
   imgui.SetCurrentContext(ctx.Context)
@@ -208,9 +214,9 @@ ImGui_Render :: proc(gpu: ^Gpu, gpuRes: ^GpuRes, window: Platform.Window) {
       }
     }
     
-    GpuUploadBuffer(&gpuRes.VBufferUi, vertices[:], gpu)
-    GpuUploadBuffer(&gpuRes.IBufferUi, indices [:], gpu)
-    GpuBindDrawBuffers(gpu, gpuRes)
+    GpuUploadVertexBuffer(vertices[:], gpu, gpuRes)
+    GpuUploadIndexBuffer (indices [:], gpu, gpuRes)
+    GpuBindDrawBuffers(gpu, gpuRes, window)
 
     drawListIdxOffset: u32
     drawListVtxOffset: i32
@@ -224,15 +230,14 @@ ImGui_Render :: proc(gpu: ^Gpu, gpuRes: ^GpuRes, window: Platform.Window) {
           bottom = i32(cmd.ClipRect.w - viewport.DrawData_.DisplayPos.y),
         )
         
-        GpuBindFontTexture(gpu, imgui.DrawCmd_GetTexID(&cmd))
+        GpuBindTexture(gpu, imgui.DrawCmd_GetTexID(&cmd))
         if cmd.UserCallback != nil { 
           cmd.UserCallback(cmdList, &cmd)
         }
         else {
-          gpu.DeviceContext->DrawIndexed(cmd.ElemCount, drawListIdxOffset + cmd.IdxOffset, drawListVtxOffset + i32(cmd.VtxOffset))
+          GpuDraw(cmd.ElemCount, drawListIdxOffset + cmd.IdxOffset, drawListVtxOffset + i32(cmd.VtxOffset), gpu, gpuRes, window)
         }
       }
-      
       drawListIdxOffset += u32(cmdList.IdxBuffer.Size);
       drawListVtxOffset += i32(cmdList.VtxBuffer.Size);
     }

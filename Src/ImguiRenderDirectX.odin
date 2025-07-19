@@ -9,12 +9,6 @@ import "vendor:directx/d3d_compiler"
 
 import "Platform"
 
-VertexImGui :: struct {
-  Pos : [2]f32,
-  Tex : [2]f32,
-  Col : u32,
-}
-
 GpuVertexBuffer :: struct {
   Buffer: ^d3d.IBuffer,
   LenBytes: int,
@@ -213,7 +207,7 @@ GpuFree :: proc(gpu: ^Gpu, gpuRes: ^GpuRes) {
   free(gpuRes)
 }
 
-GpuResizeRenderTargetToWindow :: proc(gpu: ^Gpu, gpuRes: ^GpuRes) {
+GpuResizeRenderTargetToWindow :: proc(gpu: ^Gpu, gpuRes: ^GpuRes, window: Platform.Window) {
   gpuRes.RenderTargetView->Release()
   gpuRes.RenderTarget->Release()
   gpu.Swapchain->ResizeBuffers(0, 0, 0, .UNKNOWN, {})       
@@ -242,7 +236,15 @@ GpuUploadBuffer :: proc(gpuBuff: ^$B, data: []$V, gpu: ^Gpu, growFactor: i32 = 2
   gpu.DeviceContext->Unmap(gpuBuff.Buffer, 0)
 }
 
-GpuCreateAndUploadTexture :: proc(pixels: []u8, width, height, bytesPerPixel: u32, gpu: ^Gpu, gpuRes: ^GpuRes) {
+GpuUploadVertexBuffer :: proc(data: []$V,  gpu: ^Gpu, gpuRes: ^GpuRes, growFactor: i32 = 2) {
+  GpuUploadBuffer(&gpuRes.VBufferUi, data, gpu)
+}
+
+GpuUploadIndexBuffer :: proc(data: []$V,  gpu: ^Gpu, gpuRes: ^GpuRes, growFactor: i32 = 2) {
+  GpuUploadBuffer(&gpuRes.IBufferUi, data, gpu)
+}
+
+GpuCreateAndUploadTexture :: proc(pixels: []u8, width, height, bytesPerPixel: u32, gpu: ^Gpu, gpuRes: ^GpuRes) -> u64 {
   texturedesc : d3d.TEXTURE2D_DESC
   texturedesc.Width  = width
   texturedesc.Height = height
@@ -259,6 +261,8 @@ GpuCreateAndUploadTexture :: proc(pixels: []u8, width, height, bytesPerPixel: u3
   
   gpu.Device->CreateTexture2D(&texturedesc, &textureData, &gpuRes.FontTexture)
   gpu.Device->CreateShaderResourceView(gpuRes.FontTexture, nil, &gpuRes.FontTextureView)
+  
+  return transmute(u64)gpuRes.FontTextureView
 }
 
 GpuPreparePipeline :: proc(gpu: ^Gpu, gpuRes: ^GpuRes, windowSize: [2]f32) {
@@ -293,11 +297,15 @@ GpuPreparePipeline :: proc(gpu: ^Gpu, gpuRes: ^GpuRes, windowSize: [2]f32) {
   gpu.DeviceContext->ClearRenderTargetView(gpuRes.RenderTargetView, &col)
 }
 
-GpuBindDrawBuffers :: proc(gpu: ^Gpu, gpuRes: ^GpuRes) {
+GpuBindDrawBuffers :: proc(gpu: ^Gpu, gpuRes: ^GpuRes, window: Platform.Window) {
   stride : u32 = size_of(VertexImGui)
   offset : u32 = 0
   gpu.DeviceContext->IASetVertexBuffers(0, 1, &gpuRes.VBufferUi.Buffer, &stride, &offset)
   gpu.DeviceContext->IASetIndexBuffer(gpuRes.IBufferUi.Buffer, .R16_UINT, 0)
+}
+
+GpuDraw :: proc(num, iOffset: u32, vOffset: i32, gpu: ^Gpu, gpuRes: ^GpuRes, window: Platform.Window) {
+  gpu.DeviceContext->DrawIndexed(num, iOffset, vOffset)
 }
 
 UnpackFromPointer :: proc(unpack: rawptr, $T: typeid) -> T {
@@ -308,7 +316,7 @@ UnpackFromPointer :: proc(unpack: rawptr, $T: typeid) -> T {
   return result
 }
 
-GpuBindFontTexture :: proc(gpu: ^Gpu, id: rawptr) {
+GpuBindTexture :: proc(gpu: ^Gpu, id: rawptr) {
   texHandle := UnpackFromPointer(id, ^d3d.IShaderResourceView)
   gpu.DeviceContext->PSSetShaderResources(0, 1, &texHandle)
 }

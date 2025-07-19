@@ -81,7 +81,7 @@ main :: proc() {
     //By doing a reverse loop and breaking at the first resize event we only react to the last one.
     #reverse for eBase in events {
       if e, ok := eBase.(Platform.EventResize); ok && e.Size.x > 0 && e.Size.y > 0 {
-        GpuResizeRenderTargetToWindow(gpu, gpuRes)
+        GpuResizeRenderTargetToWindow(gpu, gpuRes, window)
         break;
       }
     }
