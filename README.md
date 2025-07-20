@@ -11,7 +11,14 @@ Having a native backend available in the language that your appliation is writte
 It is written with simplicity in mind, so even if not used directly, it can serve as a starting point to implement your own backends.
 
 ## Features
-Currently only Windows is supported as a platform with DirectX for rendering. The ImGui backend logic itself is neatly separated from platform and renderer with a thin abstraction layer and consists of only roughly ~250 LOC (minus some boilerplate to translate keyboard keys).
+Supported platforms so far:
+- Windows
+
+Supported renderers:
+- DirectX
+- Software rasterizer (experimental)
+
+The ImGui backend logic itself is neatly separated from platform and renderer with a thin abstraction layer and consists of only roughly ~250 LOC (minus some boilerplate to translate keyboard keys).
 
 Implementing e.g. an OpenGL backend should be fairly trivial. As for the platform layer, I only have experience with Windows, so I can't tell how robust the abstraction is for other platforms. But it is simple enough that it should be very easily adjustable.
 
