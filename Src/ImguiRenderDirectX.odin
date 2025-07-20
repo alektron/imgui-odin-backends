@@ -9,6 +9,8 @@ import "vendor:directx/d3d_compiler"
 
 import "Platform"
 
+when RENDERER == "D3D" {
+
 GpuVertexBuffer :: struct {
   Buffer: ^d3d.IBuffer,
   LenBytes: int,
@@ -328,4 +330,6 @@ GpuSetPixelClipRect :: proc(gpu: ^Gpu, left, right, top, bottom: i32) {
   clipRect.right  = right
   clipRect.bottom = bottom
   gpu.DeviceContext->RSSetScissorRects(1, &clipRect)
+}
+
 }

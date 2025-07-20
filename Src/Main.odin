@@ -10,9 +10,14 @@ import "core:slice"
 import "core:log"
 import "core:fmt"
 
+//Currently needed for presenting with software renderer
+import win32 "core:sys/windows"
+
 import "../Libraries/imgui"
 
 import "Platform"
+
+RENDERER :: #config(RENDERER, "SW")
 
 main :: proc() {
 	when ODIN_DEBUG {
@@ -71,7 +76,7 @@ main :: proc() {
     windowSize := Platform.GetWindowClientSize(window)
     ImGui_Begin(&imguiBackend, f32(time.Delta), f32(windowSize.x),  f32(windowSize.y))
     
-    imgui.DockSpaceOverViewport()
+    //imgui.DockSpaceOverViewport()
     imgui.ShowDemoWindow()
     
     ImGui_End()
@@ -89,7 +94,33 @@ main :: proc() {
     ImGui_Render(gpu, gpuRes, window)
 
     if !Platform.WindowIsMinimized(window) {
-      gpu.Swapchain->Present(1, { })
+      when RENDERER == "D3D" {
+        gpu.Swapchain->Present(1, { })
+      }
+      else {
+        //@TODO (alektron) This is NOT how to properly redraw at a fixed framerate.
+        //Software renderer is experimental, this is just for testing.
+        bitmapInfo: win32.BITMAPINFO
+        bitmapInfo.bmiHeader.biSize = size_of(bitmapInfo.bmiHeader)
+        bitmapInfo.bmiHeader.biWidth  = i32(windowSize.x)
+        bitmapInfo.bmiHeader.biHeight = i32(windowSize.y)
+        bitmapInfo.bmiHeader.biPlanes = 1
+        bitmapInfo.bmiHeader.biBitCount = 32
+        bitmapInfo.bmiHeader.biCompression = win32.BI_RGB
+        
+        hdc := win32.GetDC(window.Handle)
+        win32.StretchDIBits(
+          hdc,
+          0, 0, i32(windowSize.x), i32(windowSize.y),
+          0, 0, i32(windowSize.x), i32(windowSize.y),
+          raw_data(gpuRes.RenderTarget.Data),
+          &bitmapInfo,
+          win32.DIB_RGB_COLORS,
+          win32.SRCCOPY
+        )
+        
+        win32.ReleaseDC(window.Handle, hdc)
+      }
     }
     else {
       Platform.ThreadSleep(30)
