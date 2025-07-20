@@ -17,6 +17,8 @@ import "../Libraries/imgui"
 
 import "Platform"
 
+//DirectX -> "D3D"
+//Software rasterizer -> "SW"
 RENDERER :: #config(RENDERER, "SW")
 
 main :: proc() {
