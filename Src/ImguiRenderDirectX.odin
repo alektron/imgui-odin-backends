@@ -332,4 +332,8 @@ GpuSetPixelClipRect :: proc(gpu: ^Gpu, left, right, top, bottom: i32) {
   gpu.DeviceContext->RSSetScissorRects(1, &clipRect)
 }
 
+GpuPresent :: proc(gpu: ^Gpu, gpuRes: ^GpuRes, window: Platform.Window) {
+  gpu.Swapchain->Present(1, { })
+}
+
 }
