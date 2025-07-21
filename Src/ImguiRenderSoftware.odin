@@ -125,58 +125,52 @@ GpuDraw :: proc(num, iOffset: u32, vOffset: i32, gpu: ^Gpu, gpuRes: ^GpuRes, win
     return 0.5 * f32((b.y - a.y) * (b.x + a.x) + (c.y - b.y) * (c.x + b.x) + (a.y - c.y) * (a.x + c.x))
   }
   
-  ColorVecFromU32 :: proc(col: u32) -> Pixel {
+  ColorVecFromU32 :: proc(col: u32) -> [4]f32 {
     return {
-      u8((col >>  0) & 0xFF),
-      u8((col >>  8) & 0xFF),
-      u8((col >> 16) & 0xFF),
-      u8((col >> 24) & 0xFF),
+      f32((col >>  0) & 0xFF) / 255,
+      f32((col >>  8) & 0xFF) / 255,
+      f32((col >> 16) & 0xFF) / 255,
+      f32((col >> 24) & 0xFF) / 255,
     }
   }
   
   DrawTriangle :: proc(aV, bV, cV: VertexImGui, tex: Texture, target: Texture, clipMin, clipMax: [2]i32) {
+    //@TODO (alektron) Sub pixel precision and fill rules.
     aPos := linalg.to_i32(aV.Pos)
     bPos := linalg.to_i32(bV.Pos)
     cPos := linalg.to_i32(cV.Pos)
-    min := linalg.min(linalg.min(aPos, bPos), cPos)
-    max := linalg.max(linalg.max(aPos, bPos), cPos)
     
-    min = linalg.max(min, [2]i32{ 0, 0 })
-    max = linalg.min(max, target.Size)
+    //Calculate triangle bounds and clip to clipping rectangle
+    min := linalg.min(aPos, bPos, cPos)
+    max := linalg.max(aPos, bPos, cPos)
     
+    //Clip to clip rectangle
+    //We expect the caller to always a clip rectangle to clip at least to the max target size.
+    //This way we save us another explicit min/max call here.
     min = linalg.max(min, clipMin)
     max = linalg.min(max, clipMax - { 1, 1 })
     
     area := SignedTriangleArea(aPos, bPos, cPos)
-    
     for x in min.x..=max.x {
       for y in min.y..=max.y {
+        //Barycentric coordinates
         alpha := SignedTriangleArea({ x, y }, bPos, cPos) / area
         beta  := SignedTriangleArea({ x, y }, cPos, aPos) / area
         gamma := SignedTriangleArea({ x, y }, aPos, bPos) / area
         
-        if alpha >= 0 && beta >= 0 && gamma >= 0 {
-          colA := ColorVecFromU32(aV.Col)
-          colB := ColorVecFromU32(bV.Col)
-          colC := ColorVecFromU32(cV.Col)
+        if !(alpha < 0 || beta < 0 || gamma < 0) {
+          vCol: [4]f32 = alpha * ColorVecFromU32(aV.Col) + beta * ColorVecFromU32(bV.Col) + gamma * ColorVecFromU32(cV.Col)
           
-          vCol: [4]f32
-          vCol.r = alpha * (f32(colA.r) / 255) + beta * (f32(colB.r) / 255) + gamma * (f32(colC.r) / 255)
-          vCol.g = alpha * (f32(colA.g) / 255) + beta * (f32(colB.g) / 255) + gamma * (f32(colC.g) / 255)
-          vCol.b = alpha * (f32(colA.b) / 255) + beta * (f32(colB.b) / 255) + gamma * (f32(colC.b) / 255)
-          vCol.a = alpha * (f32(colA.a) / 255) + beta * (f32(colB.a) / 255) + gamma * (f32(colC.a) / 255)
+          uvRel := alpha * aV.Tex + beta * bV.Tex + gamma * cV.Tex
+          uvAbs := linalg.to_i32(linalg.to_f32(tex.Size - 1) * uvRel)
           
-          u := alpha * aV.Tex.x + beta * bV.Tex.x + gamma * cV.Tex.x
-          v := alpha * aV.Tex.y + beta * bV.Tex.y + gamma * cV.Tex.y
-          
-          uAbs := i32(f32(tex.Size.x - 1) * u)
-          vAbs := i32(f32(tex.Size.y - 1) * v)
-          
-          tCol: [4]f32
-          tCol.r = f32(tex.Data[tex.BytePerPixel * (tex.Size.x * vAbs + uAbs) + 0]) / 255
-          tCol.g = f32(tex.Data[tex.BytePerPixel * (tex.Size.x * vAbs + uAbs) + 1]) / 255
-          tCol.b = f32(tex.Data[tex.BytePerPixel * (tex.Size.x * vAbs + uAbs) + 2]) / 255
-          tCol.a = f32(tex.Data[tex.BytePerPixel * (tex.Size.x * vAbs + uAbs) + 3]) / 255
+          texelIndex := tex.BytePerPixel * (tex.Size.x * uvAbs.y + uvAbs.x)
+          tCol: [4]f32 = {
+            f32(tex.Data[texelIndex + 0]) / 255,
+            f32(tex.Data[texelIndex + 1]) / 255,
+            f32(tex.Data[texelIndex + 2]) / 255,
+            f32(tex.Data[texelIndex + 3]) / 255,
+          }
           
           pixels := TextureDataAsPixel(target)
           
@@ -184,6 +178,7 @@ GpuDraw :: proc(num, iOffset: u32, vOffset: i32, gpu: ^Gpu, gpuRes: ^GpuRes, win
           outCol := vCol * tCol
           inCol  := linalg.to_f32(pixels[pixelIndex]).bgra / 255
 
+          //Alpha blending
           col: [4]u8 = linalg.to_u8((outCol * outCol.a + inCol * (1 - outCol.a)) * 255)
           pixels[pixelIndex] = { col.b, col.g, col.r, 255 }
         }
