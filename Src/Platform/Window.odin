@@ -249,6 +249,125 @@ CreateAndShowWindow :: proc(title: string) -> Window {
     return {}
   }
   
+  //@TODO (alektron) Only do all the OpenGL initialization stuff when we are using the OpenGL backend.
+  //Maybe move this somewhere else entirely?
+  if TryRegisterWglFunctions() {
+    pixelFormats: [1]i32
+    numFormats  : [1]u32
+    
+    attribList := [?]i32 {
+      win32.WGL_DRAW_TO_WINDOW_ARB, 1,
+      win32.WGL_SUPPORT_OPENGL_ARB, 1,
+      win32.WGL_DOUBLE_BUFFER_ARB,  1,
+      win32.WGL_PIXEL_TYPE_ARB, win32.WGL_TYPE_RGBA_ARB,
+      win32.WGL_COLOR_BITS_ARB, 8,
+      win32.WGL_ALPHA_BITS_ARB, 0,
+      win32.WGL_DEPTH_BITS_ARB, 0,
+      win32.WGL_STENCIL_BITS_ARB, 0,
+      win32.WGL_SAMPLE_BUFFERS_ARB, 0,
+      win32.WGL_SAMPLES_ARB, 0,
+      0, // End
+    }
+    
+    dc := win32.GetDC(window)
+    win32.wglChoosePixelFormatARB(dc, raw_data(&attribList), nil, 1, raw_data(&pixelFormats), raw_data(&numFormats)) 
+    win32.SetPixelFormat(dc, pixelFormats[0], nil) 
+    
+    attributes := [?]i32 {
+      win32.WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+      win32.WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+      win32.WGL_CONTEXT_FLAGS_ARB, win32.WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+      0
+    }
+    
+    ctx := win32.wglCreateContextAttribsARB(dc, nil, raw_data(&attributes))
+    win32.wglMakeCurrent(dc, ctx)
+  }
+  
+  
   win32.ShowWindow(window, win32.SW_MAXIMIZE)
   return { Handle = window }
 }
+
+WndProcDummy :: proc "system" (hwnd : win32.HWND, msg : win32.UINT, wParam : win32.WPARAM, lParam : win32.LPARAM) -> win32.LRESULT {
+  return win32.DefWindowProcW(hwnd, msg, wParam, lParam)
+}
+
+
+TryRegisterWglFunctions :: proc() -> bool {
+  if win32.wglChoosePixelFormatARB != nil && win32.wglCreateContextAttribsARB != nil {
+    return true  
+  }
+  
+  hInstance := win32.GetModuleHandleW(nil)
+  classAlreadyRegistered: bool
+  {
+    class: win32.WNDCLASSEXW
+    result := win32.GetClassInfoExW(win32.HANDLE(hInstance), UTF_16_LIT("OpenGlDummyWindowClass"), &class)
+    classAlreadyRegistered = result != win32.FALSE
+  }
+  
+  if !classAlreadyRegistered {
+    class: win32.WNDCLASSEXW
+    class.cbSize        = size_of(win32.WNDCLASSEXW)
+    class.style         = win32.CS_OWNDC
+    class.lpfnWndProc   = WndProcDummy
+    class.hInstance     = win32.HANDLE(win32.GetModuleHandleW(nil))
+    class.lpszClassName = UTF_16_LIT("OpenGLDummyWindowClass")
+    
+    reg := win32.RegisterClassExW(&class)
+    if reg == 0 {
+      log.error("[TryRegisterWglFunctions] RegisterClass failed")
+      return false
+    }
+  }
+  
+  window := win32.CreateWindowW(
+    UTF_16_LIT("OpenGLDummyWindowClass"),
+    UTF_16_LIT("OpenGlContextDummy"),
+    0, 
+    0, 0, 0, 0,
+    nil, nil,
+    win32.HANDLE(win32.GetModuleHandleW(nil)),
+    nil
+  )
+  
+  if window == nil {
+    log.error("[TryRegisterWglFunctions] CreateWindow for OpenGL dummy window failed")
+    return false
+  }
+  
+  dc := win32.GetDC(window)
+  
+  pfd: win32.PIXELFORMATDESCRIPTOR = {
+    nSize = size_of(win32.PIXELFORMATDESCRIPTOR),
+    nVersion = 1,
+    dwFlags = win32.PFD_DRAW_TO_WINDOW | win32.PFD_SUPPORT_OPENGL | win32.PFD_DOUBLEBUFFER
+  }
+  
+  pixelFormat := win32.ChoosePixelFormat(dc, &pfd)  
+  if win32.SetPixelFormat(dc, pixelFormat, nil) == win32.FALSE {
+    return false
+  }
+  
+  rc := win32.wglCreateContext(dc)
+  if rc == nil {
+    return false
+  }
+  
+  if win32.wglMakeCurrent(dc, rc) == false {
+    return false
+  }
+  
+  win32.wglChoosePixelFormatARB    = win32.ChoosePixelFormatARBType   (win32.wglGetProcAddress("wglChoosePixelFormatARB"))
+  win32.wglCreateContextAttribsARB = win32.CreateContextAttribsARBType(win32.wglGetProcAddress("wglCreateContextAttribsARB"))
+  
+  if win32.wglChoosePixelFormatARB    == nil { log.error("[TryRegisterWglFunctions] Could not get function ptr for wglChoosePixelFormatARB"   ); return false; }
+  if win32.wglCreateContextAttribsARB == nil { log.error("[TryRegisterWglFunctions] Could not get function ptr for wglCreateContextAttribsARB"); return false; }
+  
+  win32.DestroyWindow(window)
+  win32.UnregisterClassW(UTF_16_LIT("OpenGLDummyWindowClass"), win32.HANDLE(win32.GetModuleHandleW(nil)))
+  
+  return true
+}
+
