@@ -16,6 +16,7 @@ Supported platforms so far:
 
 Supported renderers:
 - DirectX
+- OpenGL (Work in progress)
 - Software rasterizer (experimental)
 
 The ImGui backend logic itself is neatly separated from platform and renderer with a thin abstraction layer and consists of only roughly ~250 LOC (minus some boilerplate to translate keyboard keys).
