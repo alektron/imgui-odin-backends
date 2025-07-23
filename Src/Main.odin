@@ -38,7 +38,7 @@ main :: proc() {
 	
 	Platform.InputInit()
 	Platform.WindowInit()
-	window := Platform.CreateAndShowWindow("ImGui Demo")
+	window := Platform.CreateAndShowWindow("ImGui Demo", initOpenGl = RENDERER == "OPEN_GL")
 	if !Platform.WindowIsValid(window) {
 	  log.error("Could not create window")
 	  return

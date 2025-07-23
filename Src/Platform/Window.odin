@@ -223,7 +223,7 @@ GetWindowClientSize :: proc(window: Window) -> [2]f32 {
   return { f32(width), f32(height) }
 }
 
-CreateAndShowWindow :: proc(title: string) -> Window {
+CreateAndShowWindow :: proc(title: string, initOpenGl := false) -> Window {
   //The following is just regular boiler plate code to get a window up and running on Windows.
   //If you have written applications with graphical user interfaces on Windows before you have probably encountered
   //code more or less just like this.
@@ -249,39 +249,40 @@ CreateAndShowWindow :: proc(title: string) -> Window {
     return {}
   }
   
-  //@TODO (alektron) Only do all the OpenGL initialization stuff when we are using the OpenGL backend.
-  //Maybe move this somewhere else entirely?
-  if TryRegisterWglFunctions() {
-    pixelFormats: [1]i32
-    numFormats  : [1]u32
-    
-    attribList := [?]i32 {
-      win32.WGL_DRAW_TO_WINDOW_ARB, 1,
-      win32.WGL_SUPPORT_OPENGL_ARB, 1,
-      win32.WGL_DOUBLE_BUFFER_ARB,  1,
-      win32.WGL_PIXEL_TYPE_ARB, win32.WGL_TYPE_RGBA_ARB,
-      win32.WGL_COLOR_BITS_ARB, 8,
-      win32.WGL_ALPHA_BITS_ARB, 0,
-      win32.WGL_DEPTH_BITS_ARB, 0,
-      win32.WGL_STENCIL_BITS_ARB, 0,
-      win32.WGL_SAMPLE_BUFFERS_ARB, 0,
-      win32.WGL_SAMPLES_ARB, 0,
-      0, // End
+  if initOpenGl {
+    //@TODO (alektron) Maybe move this somewhere else entirely?
+    if TryRegisterWglFunctions() {
+      pixelFormats: [1]i32
+      numFormats  : [1]u32
+      
+      attribList := [?]i32 {
+        win32.WGL_DRAW_TO_WINDOW_ARB, 1,
+        win32.WGL_SUPPORT_OPENGL_ARB, 1,
+        win32.WGL_DOUBLE_BUFFER_ARB,  1,
+        win32.WGL_PIXEL_TYPE_ARB, win32.WGL_TYPE_RGBA_ARB,
+        win32.WGL_COLOR_BITS_ARB, 8,
+        win32.WGL_ALPHA_BITS_ARB, 0,
+        win32.WGL_DEPTH_BITS_ARB, 0,
+        win32.WGL_STENCIL_BITS_ARB, 0,
+        win32.WGL_SAMPLE_BUFFERS_ARB, 0,
+        win32.WGL_SAMPLES_ARB, 0,
+        0, // End
+      }
+      
+      dc := win32.GetDC(window)
+      win32.wglChoosePixelFormatARB(dc, raw_data(&attribList), nil, 1, raw_data(&pixelFormats), raw_data(&numFormats)) 
+      win32.SetPixelFormat(dc, pixelFormats[0], nil) 
+      
+      attributes := [?]i32 {
+        win32.WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+        win32.WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+        win32.WGL_CONTEXT_FLAGS_ARB, win32.WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+        0
+      }
+      
+      ctx := win32.wglCreateContextAttribsARB(dc, nil, raw_data(&attributes))
+      win32.wglMakeCurrent(dc, ctx)
     }
-    
-    dc := win32.GetDC(window)
-    win32.wglChoosePixelFormatARB(dc, raw_data(&attribList), nil, 1, raw_data(&pixelFormats), raw_data(&numFormats)) 
-    win32.SetPixelFormat(dc, pixelFormats[0], nil) 
-    
-    attributes := [?]i32 {
-      win32.WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-      win32.WGL_CONTEXT_MINOR_VERSION_ARB, 3,
-      win32.WGL_CONTEXT_FLAGS_ARB, win32.WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-      0
-    }
-    
-    ctx := win32.wglCreateContextAttribsARB(dc, nil, raw_data(&attributes))
-    win32.wglMakeCurrent(dc, ctx)
   }
   
   
