@@ -16,12 +16,12 @@ Supported platforms so far:
 
 Supported renderers:
 - DirectX 11
-- OpenGL 3.3 (Work in progress)
+- OpenGL 3.3
 - Software rasterizer (experimental)
 
-The ImGui backend logic itself is neatly separated from platform and renderer with a thin abstraction layer and consists of only roughly ~250 LOC (minus some boilerplate to translate keyboard keys).
+The ImGui backend logic itself is neatly separated from platform and renderer with a thin abstraction layer and consists of only roughly ~250 LOC (not counting some boilerplate to translate keyboard keys).
 
-Implementing e.g. an OpenGL backend should be fairly trivial. As for the platform layer, I only have experience with Windows, so I can't tell how robust the abstraction is for other platforms. But it is simple enough that it should be very easily adjustable.
+Implementing other render backends should be fairly trivial. As for the platform layer, I only have experience with Windows, so I can't tell how robust the abstraction is for other platforms. But it is simple enough that it should be very easily adjustable.
 
 We do not currently support the new dynamic font system. I have yet to look into it.
 
