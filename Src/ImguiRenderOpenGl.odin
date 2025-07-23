@@ -3,10 +3,6 @@ import "core:slice"
 import "core:mem"
 import "core:log"
 
-import "vendor:directx/dxgi"
-import d3d "vendor:directx/d3d11"
-import "vendor:directx/d3d_compiler"
-
 import gl "vendor:opengl"
 import win32 "core:sys/windows"
 
@@ -29,29 +25,13 @@ GpuShaderConstBuffer :: struct #align(16) {
 }
 
 Gpu :: struct {
-  Swapchain     : ^dxgi.ISwapChain,
-  Device        : ^d3d.IDevice,
-  DeviceContext : ^d3d.IDeviceContext,
 }
 
 //GPU resources
 GpuRes :: struct {
-  //Backbuffer render targets
-  RenderTarget: ^d3d.ITexture2D,
-  RenderTargetView: ^d3d.IRenderTargetView,
-  
-  //Render state (rasterizer, blend state etc.)
-  Rasterizer2d: ^d3d.IRasterizerState,
-  SamplerState: ^d3d.ISamplerState,
-  BlendState: ^d3d.IBlendState,
-  
-  FontTexture: ^d3d.ITexture2D,
-  FontTextureView: ^d3d.IShaderResourceView,
-    
-  ConstBuffer: ^d3d.IBuffer,
-  
   ShaderUi: u32,
-  LayoutUi: ^d3d.IInputLayout,
+  
+  FontTexture: u32,
   
   VBufferUi: GpuVertexBuffer,
   IBufferUi: GpuIndexBuffer,
@@ -90,12 +70,7 @@ GpuInit :: proc(window: Platform.Window) -> (gpu: ^Gpu, gpuRes: ^GpuRes) {
   gl.DeleteShader(fShader)
          
   gl.GenBuffers(1, &gpuRes.VBufferUi.Buffer)
-  // gl.BindBuffer(gl.ARRAY_BUFFER, gpuRes.VBufferUi.Buffer)
-  // gl.BufferData(gl.ARRAY_BUFFER, 0, nil, gl.DYNAMIC_DRAW)
-  
   gl.GenBuffers(1, &gpuRes.IBufferUi.Buffer)
-  // gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, gpuRes.IBufferUi.Buffer)
-  // gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, 0, nil, gl.DYNAMIC_DRAW)
   
   gl.GenVertexArrays(1, &gpuRes.MeshUi)
   gl.BindVertexArray(gpuRes.MeshUi)
@@ -110,7 +85,7 @@ GpuInit :: proc(window: Platform.Window) -> (gpu: ^Gpu, gpuRes: ^GpuRes) {
   gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, gpuRes.IBufferUi.Buffer)
   gl.BindVertexArray(0)
   gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
-          
+            
   return gpu, gpuRes
 }
 
@@ -149,14 +124,24 @@ GpuUploadIndexBuffer :: proc(data: []$V,  gpu: ^Gpu, gpuRes: ^GpuRes, growFactor
 }
 
 GpuCreateAndUploadTexture :: proc(pixels: []u8, width, height, bytesPerPixel: u32, gpu: ^Gpu, gpuRes: ^GpuRes) -> u64 {
-  //@TODO (alektron)
-  return 0
+  gl.GenTextures(1, &gpuRes.FontTexture)
+  gl.BindTexture(gl.TEXTURE_2D, gpuRes.FontTexture)
+  
+  gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, i32(width), i32(height), 0, gl.RGBA, gl.UNSIGNED_BYTE, raw_data(pixels))
+  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+  gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+  gl.BindTexture(gl.TEXTURE_2D, 0)
+
+  return u64(gpuRes.FontTexture)
 }
 
 GpuPreparePipeline :: proc(gpu: ^Gpu, gpuRes: ^GpuRes, windowSize: [2]f32) {
   col := [4]f32{ 0.3, 0.3, 0.3, 1 }
   gl.Disable(gl.CULL_FACE)
   gl.Enable(gl.BLEND)
+  gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
   gl.Disable(gl.DEPTH_TEST)
   gl.Viewport(0, 0, i32(windowSize.x), i32(windowSize.y))
   gl.Enable(gl.SCISSOR_TEST)
@@ -186,16 +171,12 @@ UnpackFromPointer :: proc(unpack: rawptr, $T: typeid) -> T {
 }
 
 GpuBindTexture :: proc(gpu: ^Gpu, id: rawptr) {
-  //@TODO (alektron) Bind texture
+  gl.ActiveTexture(gl.TEXTURE0)
+  gl.BindTexture(gl.TEXTURE_2D, UnpackFromPointer(id, u32))
 }
 
-GpuSetPixelClipRect :: proc(gpu: ^Gpu, left, right, top, bottom: i32) {
-  clipRect: d3d.RECT
-  clipRect.left   = left
-  clipRect.top    = top
-  clipRect.right  = right
-  clipRect.bottom = bottom
-  gl.Scissor(left, bottom, right - left, top - bottom)
+GpuSetPixelClipRect :: proc(gpu: ^Gpu, left, right, top, bottom: i32, windowHeight: i32) {
+  gl.Scissor(left, windowHeight - bottom, right - left, bottom - top)
 }
 
 GpuPresent :: proc(gpu: ^Gpu, gpuRes: ^GpuRes, window: Platform.Window) {

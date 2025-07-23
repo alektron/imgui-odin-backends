@@ -209,7 +209,7 @@ GpuBindTexture :: proc(gpu: ^Gpu, id: rawptr) {
   //texHandle := UnpackFromPointer(id, ^d3d.IShaderResourceView)
 }
 
-GpuSetPixelClipRect :: proc(gpu: ^Gpu, left, right, top, bottom: i32) {
+GpuSetPixelClipRect :: proc(gpu: ^Gpu, left, right, top, bottom: i32, windowHeight: i32) {
   gpu.ClipMin.x = left
   gpu.ClipMin.y = top
   gpu.ClipMax.x = right

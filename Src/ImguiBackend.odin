@@ -228,6 +228,7 @@ ImGui_Render :: proc(gpu: ^Gpu, gpuRes: ^GpuRes, window: Platform.Window) {
           top    = i32(cmd.ClipRect.y - viewport.DrawData_.DisplayPos.y),
           right  = i32(cmd.ClipRect.z - viewport.DrawData_.DisplayPos.x),
           bottom = i32(cmd.ClipRect.w - viewport.DrawData_.DisplayPos.y),
+          windowHeight = i32(Platform.GetWindowClientSize(window).y),
         )
         
         GpuBindTexture(gpu, imgui.DrawCmd_GetTexID(&cmd))

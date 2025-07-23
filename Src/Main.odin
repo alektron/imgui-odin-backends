@@ -15,7 +15,7 @@ import "../Libraries/imgui"
 import "Platform"
 
 //DirectX -> "D3D"
-//OpenGL -> "OPEN_GL" (Work in progress)
+//OpenGL -> "OPEN_GL"
 //Software rasterizer -> "SW"
 RENDERER :: #config(RENDERER, "D3D")
 

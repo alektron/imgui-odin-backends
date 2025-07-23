@@ -323,7 +323,7 @@ GpuBindTexture :: proc(gpu: ^Gpu, id: rawptr) {
   gpu.DeviceContext->PSSetShaderResources(0, 1, &texHandle)
 }
 
-GpuSetPixelClipRect :: proc(gpu: ^Gpu, left, right, top, bottom: i32) {
+GpuSetPixelClipRect :: proc(gpu: ^Gpu, left, right, top, bottom: i32, windowHeight: i32) {
   clipRect: d3d.RECT
   clipRect.left   = left
   clipRect.top    = top
