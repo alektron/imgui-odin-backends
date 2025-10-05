@@ -71,7 +71,7 @@ ResizeDibSection :: proc(gpuRes: ^GpuRes, window: Platform.Window) {
   bitmapInfo.bmiHeader.biBitCount = 32
   bitmapInfo.bmiHeader.biCompression = win32.BI_RGB
   
-  bitmapMem: rawptr
+  bitmapMem: ^win32.VOID
   win32.CreateDIBSection(hdc, &bitmapInfo, win32.DIB_RGB_COLORS, &bitmapMem, nil, 0)
   
   #assert(size_of(Pixel) == 4)
