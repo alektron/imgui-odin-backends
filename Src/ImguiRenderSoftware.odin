@@ -139,9 +139,9 @@ GpuDraw :: proc(num, iOffset: u32, vOffset: i32, gpu: ^Gpu, gpuRes: ^GpuRes, win
     bV := bV 
         
     //@TODO (alektron) Sub pixel precision.
-    aPos := linalg.to_i32(aV.Pos)
-    bPos := linalg.to_i32(bV.Pos)
-    cPos := linalg.to_i32(cV.Pos)
+    aPos := linalg.to_i32(linalg.round(aV.Pos))
+    bPos := linalg.to_i32(linalg.round(bV.Pos))
+    cPos := linalg.to_i32(linalg.round(cV.Pos))
     
     area := SignedTriangleArea2(aPos, bPos, cPos)
     if area < 0 {
@@ -159,26 +159,35 @@ GpuDraw :: proc(num, iOffset: u32, vOffset: i32, gpu: ^Gpu, gpuRes: ^GpuRes, win
     //This way we save us another explicit min/max call here.
     min = linalg.max(min, clipMin)
     max = linalg.min(max, clipMax - { 1, 1 })
+    
+    abDelta := bPos - aPos
+    bcDelta := cPos - bPos
+    caDelta := aPos - cPos
+    
+    bias0 := i32(abDelta.y < 0 || (abDelta.y == 0 && abDelta.x < 0) ? 0 : -1)
+    bias1 := i32(bcDelta.y < 0 || (bcDelta.y == 0 && bcDelta.x < 0) ? 0 : -1)
+    bias2 := i32(caDelta.y < 0 || (caDelta.y == 0 && caDelta.x < 0) ? 0 : -1)
+    
+    aC := abDelta.y * aPos.x - abDelta.x * aPos.y
+    bC := bcDelta.y * bPos.x - bcDelta.x * bPos.y
+    cC := caDelta.y * cPos.x - caDelta.x * cPos.y
+    
+    aCy := aC + abDelta.x * (min.y) - abDelta.y * (min.x)
+    bCy := bC + bcDelta.x * (min.y) - bcDelta.y * (min.x)
+    cCy := cC + caDelta.x * (min.y) - caDelta.y * (min.x)
 
-    for x in min.x..=max.x {
-      for y in min.y..=max.y {
-        IsTopLeft :: proc(a, b: [2]i32) -> bool {
-          return (a.y == b.y && (b.x - a.x) < 0) || (b.y - a.y) < 0
-        }
-        
-        bias0 := i32(IsTopLeft(bPos, cPos) ? 0 : -1)
-        bias1 := i32(IsTopLeft(cPos, aPos) ? 0 : -1)
-        bias2 := i32(IsTopLeft(aPos, bPos) ? 0 : -1)
-      
-        //Barycentric coordinates
-        iAlpha := SignedTriangleArea2(bPos, cPos, { x, y })
-        iBeta  := SignedTriangleArea2(cPos, aPos, { x, y })
-        iGamma := SignedTriangleArea2(aPos, bPos, { x, y })
-        
-        if (iAlpha + bias0 >= 0 && iBeta + bias1 >= 0 && iGamma + bias2 >= 0) {
-          alpha := f32(iAlpha) / f32(area)
-          beta  := f32(iBeta ) / f32(area)
-          gamma := f32(iGamma) / f32(area)
+    pixels := TextureDataAsPixel(target)
+    for y in min.y..=max.y {
+      aCx := aCy
+      bCx := bCy
+      cCx := cCy
+    
+      for x in min.x..=max.x {       
+        if (aCx + bias0 >= 0 && bCx + bias1 >= 0 && cCx + bias2 >= 0) {
+          fArea := f32(area)
+          alpha := f32(bCx) / fArea
+          beta  := f32(cCx) / fArea
+          gamma := f32(aCx) / fArea
           
           vCol: [4]f32 = alpha * ColorVecFromU32(aV.Col) + beta * ColorVecFromU32(bV.Col) + gamma * ColorVecFromU32(cV.Col)
           
@@ -192,9 +201,7 @@ GpuDraw :: proc(num, iOffset: u32, vOffset: i32, gpu: ^Gpu, gpuRes: ^GpuRes, win
             f32(tex.Data[texelIndex + 2]) / 255,
             f32(tex.Data[texelIndex + 3]) / 255,
           }
-          
-          pixels := TextureDataAsPixel(target)
-          
+                    
           pixelIndex := x + (target.Size.y - y - 1) * target.Size.x
           outCol := vCol * tCol
           inCol  := linalg.to_f32(pixels[pixelIndex]).bgra / 255
@@ -203,7 +210,14 @@ GpuDraw :: proc(num, iOffset: u32, vOffset: i32, gpu: ^Gpu, gpuRes: ^GpuRes, win
           col: [4]u8 = linalg.to_u8((outCol * outCol.a + inCol * (1 - outCol.a)) * 255)
           pixels[pixelIndex] = { col.b, col.g, col.r, 255 }
         }
+        
+        aCx -= abDelta.y
+        bCx -= bcDelta.y
+        cCx -= caDelta.y
       }
+      aCy += abDelta.x
+      bCy += bcDelta.x
+      cCy += caDelta.x
     }
   }
   
