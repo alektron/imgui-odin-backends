@@ -121,8 +121,8 @@ GpuBindDrawBuffers :: proc(gpu: ^Gpu, gpuRes: ^GpuRes, window: Platform.Window) 
 GpuDraw :: proc(num, iOffset: u32, vOffset: i32, gpu: ^Gpu, gpuRes: ^GpuRes, window: Platform.Window) {
   hdc := win32.GetDC(window.Handle)
   
-  SignedTriangleArea :: proc(a, b, c: [2]i32) -> f32 {
-    return 0.5 * f32((b.y - a.y) * (b.x + a.x) + (c.y - b.y) * (c.x + b.x) + (a.y - c.y) * (a.x + c.x))
+  SignedTriangleArea2 :: proc(a, b, c: [2]i32) -> i32 {
+    return i32((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x))
   }
   
   ColorVecFromU32 :: proc(col: u32) -> [4]f32 {
@@ -135,30 +135,51 @@ GpuDraw :: proc(num, iOffset: u32, vOffset: i32, gpu: ^Gpu, gpuRes: ^GpuRes, win
   }
   
   DrawTriangle :: proc(aV, bV, cV: VertexImGui, tex: Texture, target: Texture, clipMin, clipMax: [2]i32) {
-    //@TODO (alektron) Sub pixel precision and fill rules.
+    aV := aV
+    bV := bV 
+        
+    //@TODO (alektron) Sub pixel precision.
     aPos := linalg.to_i32(aV.Pos)
     bPos := linalg.to_i32(bV.Pos)
     cPos := linalg.to_i32(cV.Pos)
     
-    //Calculate triangle bounds and clip to clipping rectangle
+    area := SignedTriangleArea2(aPos, bPos, cPos)
+    if area < 0 {
+      aV, bV = bV, aV
+      aPos, bPos = bPos, aPos
+      area *= -1
+    }
+    
+    //Calculate triangle bounds
     min := linalg.min(aPos, bPos, cPos)
     max := linalg.max(aPos, bPos, cPos)
     
-    //Clip to clip rectangle
-    //We expect the caller to always a clip rectangle to clip at least to the max target size.
+    //Clip bounds to clipping rectangle
+    //We expect the caller to always supply a clip rectangle to clip at least to the max target size.
     //This way we save us another explicit min/max call here.
     min = linalg.max(min, clipMin)
     max = linalg.min(max, clipMax - { 1, 1 })
-    
-    area := SignedTriangleArea(aPos, bPos, cPos)
+
     for x in min.x..=max.x {
       for y in min.y..=max.y {
-        //Barycentric coordinates
-        alpha := SignedTriangleArea({ x, y }, bPos, cPos) / area
-        beta  := SignedTriangleArea({ x, y }, cPos, aPos) / area
-        gamma := SignedTriangleArea({ x, y }, aPos, bPos) / area
+        IsTopLeft :: proc(a, b: [2]i32) -> bool {
+          return (a.y == b.y && (b.x - a.x) < 0) || (b.y - a.y) < 0
+        }
         
-        if !(alpha < 0 || beta < 0 || gamma < 0) {
+        bias0 := i32(IsTopLeft(bPos, cPos) ? 0 : -1)
+        bias1 := i32(IsTopLeft(cPos, aPos) ? 0 : -1)
+        bias2 := i32(IsTopLeft(aPos, bPos) ? 0 : -1)
+      
+        //Barycentric coordinates
+        iAlpha := SignedTriangleArea2(bPos, cPos, { x, y })
+        iBeta  := SignedTriangleArea2(cPos, aPos, { x, y })
+        iGamma := SignedTriangleArea2(aPos, bPos, { x, y })
+        
+        if (iAlpha + bias0 >= 0 && iBeta + bias1 >= 0 && iGamma + bias2 >= 0) {
+          alpha := f32(iAlpha) / f32(area)
+          beta  := f32(iBeta ) / f32(area)
+          gamma := f32(iGamma) / f32(area)
+          
           vCol: [4]f32 = alpha * ColorVecFromU32(aV.Col) + beta * ColorVecFromU32(bV.Col) + gamma * ColorVecFromU32(cV.Col)
           
           uvRel := alpha * aV.Tex + beta * bV.Tex + gamma * cV.Tex
