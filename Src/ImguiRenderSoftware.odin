@@ -152,46 +152,48 @@ GpuDraw :: proc(num, iOffset: u32, vOffset: i32, gpu: ^Gpu, gpuRes: ^GpuRes, win
     //Calculate triangle bounds
     min := linalg.min(aPos, bPos, cPos)
     max := linalg.max(aPos, bPos, cPos)
-    min = [2]i32{ (min.x + 0xF) >> 4, (min.y + 0xF) >> 4 }
+    min = [2]i32{ (min.x + 0x0) >> 4, (min.y + 0x0) >> 4 }
     max = [2]i32{ (max.x + 0xF) >> 4, (max.y + 0xF) >> 4 }
     
     //Clip bounds to clipping rectangle
     //We expect the caller to always supply a clip rectangle to clip at least to the max target size.
     //This way we save us another explicit min/max call here.
     min = linalg.max(min, clipMin)
-    max = linalg.min(max, clipMax - { 1, 1 })
+    max = linalg.min(max, clipMax)
     
     abDelta := bPos - aPos
     bcDelta := cPos - bPos
     caDelta := aPos - cPos
     
-    bias0 := i32(abDelta.y < 0 || (abDelta.y == 0 && abDelta.x > 0) ? 0 : 1)
-    bias1 := i32(bcDelta.y < 0 || (bcDelta.y == 0 && bcDelta.x > 0) ? 0 : 1)
-    bias2 := i32(caDelta.y < 0 || (caDelta.y == 0 && caDelta.x > 0) ? 0 : 1)
+    bias0 := i32(abDelta.y < 0 || (abDelta.y == 0 && abDelta.x > 0) ? 0 : (1 << 4))
+    bias1 := i32(bcDelta.y < 0 || (bcDelta.y == 0 && bcDelta.x > 0) ? 0 : (1 << 4))
+    bias2 := i32(caDelta.y < 0 || (caDelta.y == 0 && caDelta.x > 0) ? 0 : (1 << 4))
     
     abDeltaFixed := [2]i32{ abDelta.x << 4, abDelta.y << 4 }
     bcDeltaFixed := [2]i32{ bcDelta.x << 4, bcDelta.y << 4 }
     caDeltaFixed := [2]i32{ caDelta.x << 4, caDelta.y << 4 }
     
+    halfPixel := i32(1 << 3) //0.5 in 4-bit fixed-point
+    
     aC := abDelta.y * aPos.x - abDelta.x * aPos.y
     bC := bcDelta.y * bPos.x - bcDelta.x * bPos.y
     cC := caDelta.y * cPos.x - caDelta.x * cPos.y
     
-    aCy := aC + abDelta.x * (min.y << 4) - abDelta.y * (min.x << 4)
-    bCy := bC + bcDelta.x * (min.y << 4) - bcDelta.y * (min.x << 4)
-    cCy := cC + caDelta.x * (min.y << 4) - caDelta.y * (min.x << 4)
+    aCy := aC + abDelta.x * ((min.y << 4) + halfPixel) - abDelta.y * ((min.x << 4) + halfPixel)
+    bCy := bC + bcDelta.x * ((min.y << 4) + halfPixel) - bcDelta.y * ((min.x << 4) + halfPixel)
+    cCy := cC + caDelta.x * ((min.y << 4) + halfPixel) - caDelta.y * ((min.x << 4) + halfPixel)
 
     pixels := TextureDataAsPixel(target)
     colA := ColorVecFromU32(aV.Col)
     colB := ColorVecFromU32(bV.Col)
     colC := ColorVecFromU32(cV.Col)
-    texSize := linalg.to_f32(tex.Size - 1)
-    for y in min.y..=max.y {
+    texSize := linalg.to_f32(tex.Size)
+    for y in min.y..<max.y {
       aCx := aCy
       bCx := bCy
       cCx := cCy
     
-      for x in min.x..=max.x {       
+      for x in min.x..<max.x {       
         if (aCx + bias0 > 0 && bCx + bias1 > 0 && cCx + bias2 > 0) {
           fArea := f32(area)
           alpha := f32(bCx) / fArea
