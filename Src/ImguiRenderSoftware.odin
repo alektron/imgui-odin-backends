@@ -4,6 +4,7 @@ import "core:mem"
 import "core:log"
 import "core:math"
 import "core:math/linalg"
+import "base:intrinsics"
 
 import win32 "core:sys/windows"
 
@@ -205,21 +206,22 @@ GpuDraw :: proc(num, iOffset: u32, vOffset: i32, gpu: ^Gpu, gpuRes: ^GpuRes, win
           uvRel := alpha * aV.Tex + beta * bV.Tex + gamma * cV.Tex
           uvAbs := linalg.to_i32(texSize * uvRel)
           
-          texelIndex := tex.BytePerPixel * (tex.Size.x * uvAbs.y + uvAbs.x)
-          tCol: [4]f32 = {
-            f32(tex.Data[texelIndex + 0]) / 255,
-            f32(tex.Data[texelIndex + 1]) / 255,
-            f32(tex.Data[texelIndex + 2]) / 255,
-            f32(tex.Data[texelIndex + 3]) / 255,
+          tCol: [4]f32
+          #no_bounds_check {
+            texelIndex := tex.BytePerPixel * (tex.Size.x * uvAbs.y + uvAbs.x)
+            
+            col8: [4]u8
+            intrinsics.mem_copy(&col8, &tex.Data[texelIndex], size_of([4]u8))
+            tCol = linalg.to_f32(col8) / 255
           }
                     
           pixelIndex := x + (target.Size.y - y - 1) * target.Size.x
           outCol := vCol * tCol
-          inCol  := linalg.to_f32(pixels[pixelIndex]).bgra / 255
+          #no_bounds_check inCol  := linalg.to_f32(pixels[pixelIndex]).bgra / 255
 
           //Alpha blending
           col: [4]u8 = linalg.to_u8((outCol * outCol.a + inCol * (1 - outCol.a)) * 255)
-          pixels[pixelIndex] = { col.b, col.g, col.r, 255 }
+          #no_bounds_check pixels[pixelIndex] = { col.b, col.g, col.r, 255 }
         }
         
         aCx -= abDeltaFixed.y
@@ -238,7 +240,7 @@ GpuDraw :: proc(num, iOffset: u32, vOffset: i32, gpu: ^Gpu, gpuRes: ^GpuRes, win
     b := gpuRes.Vertices[i32(gpuRes.Indices[(index_i * 3 + 1) + iOffset]) + (vOffset)]
     c := gpuRes.Vertices[i32(gpuRes.Indices[(index_i * 3 + 2) + iOffset]) + (vOffset)]
 
-    DrawTriangle(a, b, c, gpuRes.FontTex, gpuRes.RenderTarget, gpu.ClipMin, gpu.ClipMax)
+    #force_no_inline DrawTriangle(a, b, c, gpuRes.FontTex, gpuRes.RenderTarget, gpu.ClipMin, gpu.ClipMax)
   }
 }
 
