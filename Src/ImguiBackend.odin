@@ -53,7 +53,7 @@ ImGui_Init :: proc(ctx: ^ImGuiBackend, fontContent: []u8, gpu: ^Gpu, gpuRes: ^Gp
   imgui.FontAtlas_GetTexDataAsRGBA32(ctx.FontAtlas, &pixels, &width, &height, &bytesPerPixel)
   
   texId := GpuCreateAndUploadTexture(slice.from_ptr((^u8)(pixels), int(width * height * bytesPerPixel)), u32(width), u32(height), u32(bytesPerPixel), gpu, gpuRes)
-  imgui.FontAtlas_SetTexID(ctx.FontAtlas, transmute(rawptr)texId)
+  imgui.FontAtlas_SetTexID(ctx.FontAtlas, texId)
   
   ctx.Context = imgui.CreateContext(ctx.FontAtlas)
   imgui.SetCurrentContext(ctx.Context)
@@ -63,9 +63,10 @@ ImGui_Init :: proc(ctx: ^ImGuiBackend, fontContent: []u8, gpu: ^Gpu, gpuRes: ^Gp
   io.ConfigFlags |= { .DockingEnable }
   
   ctx.Clipboard = ClipboardContext { Context = context }
-  io.ClipboardUserData = &ctx.Clipboard
-  io.GetClipboardTextFn = proc "c" (userData: rawptr) -> cstring {
-    ctx := (^ClipboardContext)(userData)
+  platform_io := imgui.GetPlatformIO()
+  platform_io.Platform_ClipboardUserData = &ctx.Clipboard
+  platform_io.Platform_GetClipboardTextFn = proc "c" (imgui_ctx: ^imgui.Context) -> cstring {
+    ctx := (^ClipboardContext)(imgui_ctx.PlatformIO.Platform_ClipboardUserData)
     context = ctx.Context
     clipboard := Platform.GetClipboardText()
     if len(ctx.Buffer) < len(clipboard) + 1 {
@@ -76,8 +77,8 @@ ImGui_Init :: proc(ctx: ^ImGuiBackend, fontContent: []u8, gpu: ^Gpu, gpuRes: ^Gp
     ctx.Buffer[len(clipboard)] = 0
     return cstring(raw_data(ctx.Buffer))
   }
-  io.SetClipboardTextFn = proc "c" (userData: rawptr, text: cstring) {
-    ctx := (^ClipboardContext)(userData)
+  platform_io.Platform_SetClipboardTextFn = proc "c" (imgui_ctx: ^imgui.Context, text: cstring) {
+    ctx := (^ClipboardContext)(imgui_ctx.PlatformIO.Platform_ClipboardUserData)
     context = ctx.Context
     Platform.SetClipboardText(string(text))
   }
@@ -231,7 +232,7 @@ ImGui_Render :: proc(gpu: ^Gpu, gpuRes: ^GpuRes, window: Platform.Window) {
           windowHeight = i32(Platform.GetWindowClientSize(window).y),
         )
         
-        GpuBindTexture(gpu, imgui.DrawCmd_GetTexID(&cmd))
+        GpuBindTexture(gpu, transmute(rawptr)imgui.DrawCmd_GetTexID(&cmd))
         if cmd.UserCallback != nil { 
           cmd.UserCallback(cmdList, &cmd)
         }
